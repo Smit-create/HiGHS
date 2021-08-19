@@ -255,65 +255,51 @@ void HighsPathSeparator::separateLpSolution(HighsLpRelaxation& lpRelaxation,
       if (bestInArcCol == -1 ||
           (bestOutArcCol != -1 &&
            outArcColBoundDist >= inArcColBoundDist - mip.mipdata_->feastol)) {
-        HighsInt inArcRow = randgen.integer(colInArcs[bestOutArcCol].first,
-                                            colInArcs[bestOutArcCol].second);
+        HighsInt row = -1;
+        double weight = 0.0;
+        double score = 0.0;
+        for (HighsInt k = colInArcs[bestOutArcCol].first;
+             k < colInArcs[bestOutArcCol].second; ++k) {
+          HighsInt thisRow = inArcRows[k].first;
+          double thisWeight = -outArcColVal / inArcRows[k].second;
+          if (!checkWeight(thisWeight)) continue;
+          double thisScore =
+              std::abs(thisWeight * lpSolution.row_dual[thisRow]);
 
-        HighsInt row = inArcRows[inArcRow].first;
-        double weight = -outArcColVal / inArcRows[inArcRow].second;
-
-        if (!checkWeight(weight)) {
-          bool success = false;
-          for (HighsInt nextRow = inArcRow + 1;
-               nextRow < colInArcs[bestOutArcCol].second && !success;
-               ++nextRow) {
-            row = inArcRows[nextRow].first;
-            weight = -outArcColVal / inArcRows[nextRow].second;
-            success = checkWeight(weight);
-          }
-
-          for (HighsInt nextRow = colInArcs[bestOutArcCol].first;
-               nextRow < inArcRow && !success; ++nextRow) {
-            row = inArcRows[nextRow].first;
-            weight = -outArcColVal / inArcRows[nextRow].second;
-            success = checkWeight(weight);
-          }
-
-          if (!success) {
-            if (bestInArcCol == -1)
-              break;
-            else
-              goto check_out_arc_col;
+          if (row == -1 || thisScore > score + mip.mipdata_->feastol ||
+              (thisScore >= score - mip.mipdata_->feastol && randgen.bit())) {
+            row = thisRow;
+            score = thisScore;
+            weight = thisWeight;
           }
         }
+
+        if (row == -1) goto check_out_arc_col;
 
         lpAggregator.addRow(row, weight);
       } else {
       check_out_arc_col:
-        HighsInt outArcRow = randgen.integer(colOutArcs[bestInArcCol].first,
-                                             colOutArcs[bestInArcCol].second);
 
-        HighsInt row = outArcRows[outArcRow].first;
-        double weight = -inArcColVal / outArcRows[outArcRow].second;
+        HighsInt row = -1;
+        double weight = 0.0;
+        double score = 0.0;
+        for (HighsInt k = colOutArcs[bestInArcCol].first;
+             k < colOutArcs[bestInArcCol].second; ++k) {
+          HighsInt thisRow = outArcRows[k].first;
+          double thisWeight = -inArcColVal / outArcRows[k].second;
+          if (!checkWeight(thisWeight)) continue;
+          double thisScore =
+              std::abs(thisWeight * lpSolution.row_dual[thisRow]);
 
-        if (!checkWeight(weight)) {
-          bool success = false;
-          for (HighsInt nextRow = outArcRow + 1;
-               nextRow < colOutArcs[bestInArcCol].second && !success;
-               ++nextRow) {
-            row = outArcRows[nextRow].first;
-            weight = -inArcColVal / outArcRows[nextRow].second;
-            success = checkWeight(weight);
+          if (row == -1 || thisScore > score + mip.mipdata_->feastol ||
+              (thisScore >= score - mip.mipdata_->feastol && randgen.bit())) {
+            row = thisRow;
+            score = thisScore;
+            weight = thisWeight;
           }
-
-          for (HighsInt nextRow = colOutArcs[bestInArcCol].first;
-               nextRow < outArcRow && !success; ++nextRow) {
-            row = outArcRows[nextRow].first;
-            weight = -inArcColVal / outArcRows[nextRow].second;
-            success = checkWeight(weight);
-          }
-
-          if (!success) break;
         }
+
+        if (row == -1) break;
 
         lpAggregator.addRow(row, weight);
       }
